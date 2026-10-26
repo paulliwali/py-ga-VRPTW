@@ -7,10 +7,11 @@ import json
 import pandas as pd
 from . import BASE_DIR
 
+
 def makeDirsForFile(pathname):
     try:
-        os.makedirs(os.path.split(pathname)[0])
-    except:
+        os.makedirs(os.path.split(pathname)[0], exist_ok=True)
+    except Exception:
         pass
 
 
@@ -25,6 +26,7 @@ def exist(pathname, overwrite=False, displayInfo=True):
         if os.path.ismount(pathname):
             return 'Mount Point'
         return 'Path'
+
     if os.path.exists(pathname):
         if overwrite:
             if displayInfo:
@@ -43,71 +45,70 @@ def exist(pathname, overwrite=False, displayInfo=True):
 
 def text2json(customize=False):
     def __distance(customer1, customer2):
-        return ((customer1['coordinates']['x'] - customer2['coordinates']['x'])**2 + (customer1['coordinates']['y'] - customer2['coordinates']['y'])**2)**0.5
+        return ((customer1['coordinates']['x'] - customer2['coordinates']['x']) ** 2 +
+                (customer1['coordinates']['y'] - customer2['customer2']['coordinates']['y'] if 'customer2' in customer2 else (customer1['coordinates']['y'] - customer2['coordinates']['y']) ** 2)) ** 0.5
+
+    def _dist(c1, c2):
+        return ((c1['coordinates']['x'] - c2['coordinates']['x']) ** 2 +
+                (c1['coordinates']['y'] - c2['coordinates']['y']) ** 2) ** 0.5
+
     if customize:
         textDataDir = os.path.join(BASE_DIR, 'data', 'text_customize')
         jsonDataDir = os.path.join(BASE_DIR, 'data', 'json_customize')
     else:
         textDataDir = os.path.join(BASE_DIR, 'data', 'text')
         jsonDataDir = os.path.join(BASE_DIR, 'data', 'json')
-    for textFile in map(lambda textFilename: os.path.join(textDataDir, textFilename), fnmatch.filter(os.listdir(textDataDir), '*.txt')):
+
+    for textFilename in sorted(fnmatch.filter(os.listdir(textDataDir), '*.txt')):
+        textFile = os.path.join(textDataDir, textFilename)
         jsonData = {}
-        # Count the number of lines in the file to customize the number of customers
-        size = sum(1 for line in open(textFile))
-        with open(textFile) as f:
-            for lineNum, line in enumerate(f, start=1):
-                if lineNum in [2, 3, 4, 6, 7, 8, 9]:
-                    pass
-                elif lineNum == 1:
-                    # <Instance name>
-                    jsonData['instance_name'] = line.strip()
-                elif lineNum == 5:
-                    # <Maximum heavy vehicle number>, <Heavy vehicle capacity>,
-                    # <Maximum light vehicle number>, <Light vehicle capacity>, <Light vehicle range>
-                    values = line.strip().split()
-                    jsonData['max_vehicle_number'] = int(values[0])
-                    jsonData['vehicle_capacity'] = float(values[1])
-                    try:
-                        gotdata = values[2]
-                    except IndexError:
-                        gotdata = False
-                    if gotdata:
-                        jsonData['max_light_vehicle_number'] = int(values[2])
-                        jsonData['light_vehicle_capacity'] = float(values[3])
-                        jsonData['light_vehicle_range'] = float(values[4])
-                    else:
-                        pass
-                elif lineNum == 10:
-                    # Custom number = 0, deport
-                    # <Custom number>, <X coordinate>, <Y coordinate>, <Demand>, <Ready time>, <Due date>, <Service time>
-                    values = line.strip().split()
-                    jsonData['deport'] = {
-                        'coordinates': {
-                            'x': float(values[1]),
-                            'y': float(values[2]),
-                        },
-                        'demand': float(values[3]),
-                        'ready_time': float(values[4]),
-                        'due_time': float(values[5]),
-                        'service_time': float(values[6]),
-                    }
-                else:
-                    # <Custom number>, <X coordinate>, <Y coordinate>, <Demand>, <Ready time>, <Due date>, <Service time>
-                    values = line.strip().split()
-                    jsonData['customer_%s' % values[0]] = {
-                        'coordinates': {
-                            'x': float(values[1]),
-                            'y': float(values[2]),
-                        },
-                        'demand': float(values[3]),
-                        'ready_time': float(values[4]),
-                        'due_time': float(values[5]),
-                        'service_time': float(values[6]),
-                    }
-        # There are a constant 9 lines of header text before customers
-        numOfCustomers = size - 9
+        with open(textFile, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        # Find customer line start
+        custLines = []
+        for line in lines:
+            parts = line.split()
+            if not parts:
+                continue
+            if len(parts) >= 7 and parts[0].isdigit():
+                custLines.append(parts)
+
+        # Parse instance name and vehicle parameters
+        jsonData['instance_name'] = lines[0]
+        # Line with vehicle info
+        for line in lines[1:6]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[0].isdigit() and (parts[1].isdigit() or parts[1].replace('.', '', 1).isdigit()):
+                jsonData['max_vehicle_number'] = int(parts[0])
+                jsonData['vehicle_capacity'] = float(parts[1])
+                if len(parts) >= 5:
+                    jsonData['max_light_vehicle_number'] = int(parts[2])
+                    jsonData['light_vehicle_capacity'] = float(parts[3])
+                    jsonData['light_vehicle_range'] = float(parts[4])
+                break
+
+        for parts in custLines:
+            cust_id = int(parts[0])
+            node_data = {
+                'coordinates': {
+                    'x': float(parts[1]),
+                    'y': float(parts[2]),
+                },
+                'demand': float(parts[3]),
+                'ready_time': float(parts[4]),
+                'due_time': float(parts[5]),
+                'service_time': float(parts[6]),
+            }
+            if cust_id == 0:
+                jsonData['deport'] = node_data
+            else:
+                jsonData['customer_%d' % cust_id] = node_data
+
+        numOfCustomers = len(custLines)
         customers = ['deport'] + ['customer_%d' % x for x in range(1, numOfCustomers)]
-        jsonData['distance_matrix'] = [[__distance(jsonData[customer1], jsonData[customer2]) for customer1 in customers] for customer2 in customers]
+        jsonData['distance_matrix'] = [[_dist(jsonData[c1], jsonData[c2]) for c1 in customers] for c2 in customers]
+
         jsonFilename = '%s.json' % jsonData['instance_name']
         jsonPathname = os.path.join(jsonDataDir, jsonFilename)
         print('Write to file: %s' % jsonPathname)
@@ -119,116 +120,93 @@ def text2json(customize=False):
 def plotResults():
     plt.style.use('ggplot')
     resultsDataDir = os.path.join(BASE_DIR, 'results')
-    for csvFile in map(lambda csvFilename: os.path.join(resultsDataDir, csvFilename), fnmatch.filter(os.listdir(resultsDataDir), '*csv')):
+    if not os.path.exists(resultsDataDir):
+        print('No results directory found at %s' % resultsDataDir)
+        return
+    for csvFile in map(lambda csvFilename: os.path.join(resultsDataDir, csvFilename), fnmatch.filter(os.listdir(resultsDataDir), '*.csv')):
         df = pd.read_csv(csvFile)
-        # Delete the last 2 columns (std_fitness, avg_cost)
-        if len(df.columns) == 6:
-            df.drop(df.columns[[5]], axis=1, inplace=True)
-        else:
-            df.drop(df.columns[[5, 6]], axis=1, inplace=True)
-        # Delete the first 2 columns (generation, evaluated_individuals) 
-        df.drop(df.columns[[0,1]], axis=1, inplace=True)
-        
+        # Drop columns not needed for fitness plot
+        cols_to_drop = [c for c in ['generation', 'evaluated_individuals', 'std_fitness', 'avg_cost'] if c in df.columns]
+        df_plot = df.drop(columns=cols_to_drop)
+
         plt.figure()
-        ax = df.plot(figsize=(20,10))
+        ax = df_plot.plot(figsize=(20, 10))
         ax.set_xlabel('Generation')
         ax.set_ylabel('Fitness')
 
-        # Save to folder
         filename = os.path.splitext(csvFile)[0]
         plt.savefig(filename + '.png')
+        plt.close('all')
+
 
 def visualizeRoutes(instanceName, instance, route, containsLightResource=False):
-    # Takes in the instance and a route list and plots the
-    # routes. It could be a VRPMS routes or standard VRP routes
-   
-    # Read the instance and save the x, y coordinates in a dataframe object
-    df = pd.DataFrame()
+    rows = []
     for customer in instance:
         if customer.startswith("customer"):
-            row = [[str(customer), instance[customer]["coordinates"]["x"], instance[customer]["coordinates"]["y"]]]
-            df = df.append(row, ignore_index=True)
+            rows.append({
+                "customer_number": str(customer),
+                "x_pos": float(instance[customer]["coordinates"]["x"]),
+                "y_pos": float(instance[customer]["coordinates"]["y"])
+            })
         elif customer.startswith("deport"):
-            row = [["customer_0", instance[customer]["coordinates"]["x"], instance[customer]["coordinates"]["y"]]]
-            df = df.append(row, ignore_index=True)
-        else:
-            next
-    df.columns = ['customer_number', 'x_pos', 'y_pos']
+            rows.append({
+                "customer_number": "customer_0",
+                "x_pos": float(instance[customer]["coordinates"]["x"]),
+                "y_pos": float(instance[customer]["coordinates"]["y"])
+            })
+    df = pd.DataFrame(rows)
 
     plt.style.use('ggplot')
     plotDataDir = os.path.join(BASE_DIR, 'data', 'plot')
-    
-    # Plot the scatter plot of customers
-    plt.figure()
-    ax = df.plot.scatter(x='x_pos', y='y_pos', color='red')
-    
-    # Annotate the depot
-    x_depot, y_depot = (float(df.loc[df['customer_number'] == "customer_0"]['x_pos']),
-                        float(df.loc[df['customer_number'] == "customer_0"]['y_pos']))
-    ax.text(x_depot, y_depot, "depot")
+    makeDirsForFile(os.path.join(plotDataDir, 'dummy.txt'))
 
-    # Label the axis
+    fig, ax = plt.subplots(figsize=(12, 8))
+    ax.scatter(df['x_pos'], df['y_pos'], color='red', zorder=5)
+
+    x_depot = float(df.loc[df['customer_number'] == "customer_0"]['x_pos'].iloc[0])
+    y_depot = float(df.loc[df['customer_number'] == "customer_0"]['y_pos'].iloc[0])
+    ax.text(x_depot + 1, y_depot + 1, "depot (0)", fontweight='bold', color='black')
+
+    for _, row in df.iterrows():
+        if row['customer_number'] != "customer_0":
+            c_num = row['customer_number'].replace("customer_", "")
+            ax.text(row['x_pos'] + 0.5, row['y_pos'] + 0.5, c_num, fontsize=9)
+
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
+    ax.set_title(f'Route Visualization: {instanceName}')
 
-    # Plot the connections of routes
-    # For VRP only routes
-    if containsLightResource == False:
-        # Iterate through all the subRoutes in the route
-        for subRoutes in route:
-            lastCustomer = 0
-            for customer in subRoutes: 
-                i, j = zip([float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['x_pos']),
-                        float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['y_pos'])],
-                        [float(df.loc[df['customer_number'] == "customer_%d" % customer]['x_pos']),
-                        float(df.loc[df['customer_number'] == "customer_%d" % customer]['y_pos'])])
-                plt.plot(i, j, 'b')
+    def get_pos(c_id):
+        key = "customer_0" if c_id == 0 else f"customer_{c_id}"
+        r = df.loc[df['customer_number'] == key]
+        return float(r['x_pos'].iloc[0]), float(r['y_pos'].iloc[0])
 
-                # Annotate the customer numbers
-                ax.text(i[1], j[1], str(customer))
-                lastCustomer = customer
-            # Add the return trip to the depot
-            customer = 0
-            i, j = zip([float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['x_pos']),
-            float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['y_pos'])],
-            [float(df.loc[df['customer_number'] == "customer_%d" % customer]['x_pos']),
-            float(df.loc[df['customer_number'] == "customer_%d" % customer]['y_pos'])])
-            plt.plot(i, j, 'b')
-        
-        else:
-            # route = [[[L1], [H1]], [[H2]], [[L3], [H3]]]
-            # subRoutes = [[L1], [H1]]
+    if not containsLightResource:
+        colors = ['blue', 'green', 'purple', 'orange', 'cyan', 'magenta', 'brown']
+        for idx, subRoute in enumerate(route):
+            color = colors[idx % len(colors)]
+            full_sub = [0] + subRoute + [0]
+            xs = [get_pos(c)[0] for c in full_sub]
+            ys = [get_pos(c)[1] for c in full_sub]
+            ax.plot(xs, ys, color=color, linewidth=2, label=f'Vehicle {idx + 1}')
+    else:
+        # Mixed heavy & light routes: route = [[L1, L2, ..., H], ...]
+        colors = ['blue', 'purple', 'brown', 'teal', 'darkorange']
+        for idx, subRoute in enumerate(route):
+            base_color = colors[idx % len(colors)]
+            heavy_route = subRoute[-1]
+            full_heavy = [0] + heavy_route + [0]
+            xs_h = [get_pos(c)[0] for c in full_heavy]
+            ys_h = [get_pos(c)[1] for c in full_heavy]
+            ax.plot(xs_h, ys_h, color=base_color, linewidth=2.5, label=f'Heavy Vehicle {idx + 1}')
 
-            for subRoutes in route:
-                # Only heavy
-                if len(subRoutes==1):
-                    lastCustomer = 0
-                    for customers in subRoutes[0]: 
-                        i, j = zip([float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['x_pos']),
-                                float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['y_pos'])],
-                                [float(df.loc[df['customer_number'] == "customer_%d" % customer]['x_pos']),
-                                float(df.loc[df['customer_number'] == "customer_%d" % customer]['y_pos'])])
-                        plt.plot(i, j, 'b')
+            for l_idx, light_sub in enumerate(subRoute[:-1]):
+                xs_l = [get_pos(c)[0] for c in light_sub]
+                ys_l = [get_pos(c)[1] for c in light_sub]
+                ax.plot(xs_l, ys_l, color='limegreen', linestyle='--', linewidth=2,
+                        label='Light Resource' if idx == 0 and l_idx == 0 else "")
 
-                        # Annotate the customer numbers
-                        ax.text(i[1], j[1], str(customer))
-                        lastCustomer = customer
-                    # Add the return trip to the depot
-                    customer = 0
-                    i, j = zip([float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['x_pos']),
-                    float(df.loc[df['customer_number'] == "customer_%d" % lastCustomer]['y_pos'])],
-                    [float(df.loc[df['customer_number'] == "customer_%d" % customer]['x_pos']),
-                    float(df.loc[df['customer_number'] == "customer_%d" % customer]['y_pos'])])
-                    plt.plot(i, j, 'b')
-
-                # Contains light and heavy
-                elif len(subRoutes>1):
-                    # TODO add code for this, consider somehow using a method to draw.
-                    continue
-                else:
-                    print "something is wrong!"
-
-
-    # Save to folder
+    ax.legend()
     filelocation = os.path.join(plotDataDir, instanceName)
-    plt.savefig(filelocation + '.png')
+    plt.savefig(filelocation + '.png', bbox_inches='tight')
+    plt.close(fig)
