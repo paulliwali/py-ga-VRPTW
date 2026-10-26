@@ -1,55 +1,114 @@
 # py-ga-VRPMV
 
-Forked from iRB-Lab to implement a GA solution to solve Vehicle Routing Problem with Movement Synchronization (VRPMV).
+Forked from [iRB-Lab/py-ga-VRPTW](https://github.com/iRB-Lab/py-ga-VRPTW) to implement a two-stage Genetic Algorithm (GA) solution for the **Vehicle Routing Problem with Movement Synchronization (VRPMV / VRPMS)**.
 
-- Implemented a fix to the PMX function
-- Implemented a more efficient selection process to improve the overall GA process
-- Enabled multi-processing with the appropriate functions from the `DEAP` library using the `multiprocessing` module
-- Solved VRP with movement synchronization involving the teamwork of heavy and light resource
+- Implemented a fix to the Partially Matched Crossover (PMX) function for 1-indexed customer IDs
+- Implemented an elitist selection process to improve GA convergence
+- Enabled multi-processing with `DEAP` using Python's `multiprocessing` module
+- Solved VRP with movement synchronization involving the coordinated teamwork of **heavy** (e.g., truck) and **light** (e.g., drone/courier) resources
 
 ## Reference to py-ga-VRPTW
 
-- see iRB-Lab's [repository](https://github.com/iRB-Lab/py-ga-VRPTW)
+- See iRB-Lab's [repository](https://github.com/iRB-Lab/py-ga-VRPTW)
 
 ## Contents for VRPMV
 
-- [Modifications to the GA Implementation](#modifications-to-the-GA-implementation-for-VRPTW)
-  - [Selection: Elite Selection](#Selection:-Elite-Selection)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Data Preparation](#data-preparation)
+  - [Running the Solver](#running-the-solver)
+- [Modifications to the GA Implementation for VRPTW](#modifications-to-the-ga-implementation-for-vrptw)
+  - [Selection: Elite Selection](#selection-elite-selection)
   - [Partially Matched Crossover Method](#partially-matched-crossover-method)
-  - [Multiprocessing](#Multiprocessing)
-- [GA Implementation of Movement Synchronization](#GA-implementation-of-movement-synchronization)
-  - [Individual with MV](#individual-with-movement-synchronization-(Chromosomes))
-    - [Decode Individual with MV](#decode-individual-with-movement-synchronization)
-    - [Create Individuals with MV](#create-individuals-with-movement-synchronization)
-  - [Evaluation of Individual with MV](#evaluation-of-individuals-with-movement-synchronization)
-  - [Crossover of Individual with MV](#crossover-of-individuals-with-movement-synchronization)
+  - [Multiprocessing](#multiprocessing)
+- [GA Implementation of Movement Synchronization](#ga-implementation-of-movement-synchronization)
+  - [Individual (Chromosomes)](#individual-chromosomes)
+  - [Individual with Movement Synchronization (Chromosomes)](#individual-with-movement-synchronization-chromosomes)
+    - [Decode Individual with Movement Synchronization](#decode-individual-with-movement-synchronization)
+    - [Create Individuals with Movement Synchronization](#create-individuals-with-movement-synchronization)
+  - [Evaluation of Individuals with Movement Synchronization](#evaluation-of-individuals-with-movement-synchronization)
+  - [Crossover of Individuals with Movement Synchronization](#crossover-of-individuals-with-movement-synchronization)
+- [File Structure](#file-structure)
+- [Further Reading](#further-reading)
+- [References](#references)
+
+## Getting Started
+
+### Prerequisites
+
+This project is written in **Python 2.7**. Install the required packages via `pip`:
+
+```bash
+pip install -r requirements.txt
+```
+
+Required libraries:
+- `deap>=1.0.2`
+- `numpy>=1.13`
+- `pandas>=0.20`
+- `matplotlib>=2.0`
+
+### Data Preparation
+
+Convert raw Solomon/custom `.txt` benchmark files into `.json` format (which precomputes the Euclidean distance matrix):
+
+```bash
+# Convert standard Solomon benchmark instances (data/text/*.txt -> data/json/*.json)
+python text2json.py
+
+# Convert customized instances (data/text_customize/*.txt -> data/json_customize/*.json)
+python text2json_customize.py
+```
+
+### Running the Solver
+
+The VRPMV solver operates in **two stages** using scripts in `instance_run_scripts/`:
+
+1. **Stage 1 — Solve VRPTW for Heavy Vehicle Sub-Routes**:
+   ```bash
+   python instance_run_scripts/sample_P-nX-X.py
+   ```
+   This evolves a permutation of all customers, splits it into feasible heavy-vehicle sub-routes (`ind2route`), prints the best route and cost, and optionally exports generation statistics to `results/`.
+
+2. **Stage 2 — Optimize Movement Synchronization (Heavy + Light Resources)**:
+   Copy the resulting sub-routes (`bestVRP`) from Stage 1 into `instance_run_scripts/sample_P-nX-X-VRPMS.py` and run:
+   ```bash
+   python instance_run_scripts/sample_P-nX-X-VRPMS.py
+   ```
+   For each sub-route, this clusters light-deliverable customers and evolves the departure and reunion (rendezvous) points between the light and heavy resources.
+
+3. **Plot Fitness Curves**:
+   ```bash
+   python plotResults.py
+   ```
+   Generates `.png` fitness progression plots in `results/` for all exported `.csv` files.
 
 ## Modifications to the GA Implementation for VRPTW
 
-Several modifications are made to improve the performance of the iRB-lab's GA implementation.
+Several modifications are made to improve the performance of iRB-Lab's GA implementation.
 
 ### Selection: Elite Selection
 
-Instead of solely relying on the roulette selection process to pick the individuals for crossover and mutation, select one elite `individual` to keep past the crossover and mutation step, select the top 10% of the current generation and roulette select the other 90%. The selection methods are using built-in `deap` tools
+Instead of solely relying on the roulette selection process to pick the individuals for crossover and mutation, select one elite `individual` to keep untouched past the crossover and mutation step, select the top 10% of the current generation, and roulette-select the remaining 90%. The selection methods use built-in `deap` tools:
 
 ```python
-elite = deal.tools.selBest(individuals, 1)
-deap.tools.selBest(individuals, j)
-deap.tools.selRoulette(individuals, k)
+elite = deap.tools.selBest(individuals, 1)
+offspring = deap.tools.selBest(individuals, int(numpy.ceil(len(individuals) * 0.1)))
+offspringRoulette = deap.tools.selRoulette(individuals, int(numpy.floor(len(individuals) * 0.9)) - 1)
 ```
 
 ### Partially Matched Crossover Method
 
-The partially matched crossover (PMX) method originally coded is based on a paper by Goldberg [(1985)][goldberg-1985]. The method was not working as intended, and I replaced it with the built-in version from `deap` with a small modification to account for the depot naming convention.
+The partially matched crossover (PMX) method originally coded is based on a paper by Goldberg [(1985)][goldberg-1985]. The original implementation was not working as intended, so it was replaced with the built-in version from `deap` with an index offset modification (`-1`) to account for 1-indexed customer IDs (since `0` is reserved for the depot).
 
-PMX is suited for problems where the optimal values and locations of the chromosomes matter. PMX works by randomly selecting a range of customers to swap between the routes. As each customer is swapped between the two routes, the duplicates are also swapped. For example if there are two `individuals`.
+PMX is suited for problems where the optimal values and locations of the chromosomes matter. PMX works by randomly selecting a range of customers to swap between the routes. As each customer is swapped between the two routes, the duplicates are also swapped. For example, if there are two `individuals`:
 
 ```python
 A = [9, 8, 4, 5, 6, 7, 1, 3, 2, 10]
 B = [8, 7, 1, 2, 3, 10, 9, 5, 4, 6]
 ```
 
-PMX first randomly choose a range called the "mapping section".
+PMX first randomly chooses a range called the "mapping section":
 
 ```python
 A = [9, 8, 4, 5, 6, 7, 1, 3, 2, 10]
@@ -57,7 +116,8 @@ A = [9, 8, 4, 5, 6, 7, 1, 3, 2, 10]
 B = [8, 7, 1, 2, 3, 10, 9, 5, 4, 6]
              ^         ^
 ```
-Then the first pair (5 - 2) is swapped, followed by a check to see where the duplicated customers are and swapped accordingly.
+
+Then the first pair (`5` - `2`) is swapped, followed by a check to see where the duplicated customers are and swapping them accordingly:
 
 ```python
 A_swapped = [9, 8, 4, 2, 6, 7, 1, 3, 5, 10]
@@ -65,7 +125,9 @@ A_swapped = [9, 8, 4, 2, 6, 7, 1, 3, 5, 10]
 B_swapped = [8, 7, 1, 5, 3, 10, 9, 2, 4, 6]
                      ^         ^
 ```
-Then it moves to the next pair (6 - 3) until all the pairs are exhausted in the mapping section.
+
+Then it moves to the next pair (`6` - `3`) until all the pairs are exhausted in the mapping section:
+
 ```python
 A_swapped = [9, 8, 4, 2, 3, 10, 1, 6, 5, 7]
                      ^         ^
@@ -75,15 +137,15 @@ B_swapped = [8, 10, 1, 5, 6, 7, 9, 2, 4, 3]
 
 ### Multiprocessing
 
-Python is by default locked from using multiple processors on a given machine due to the Global Interpreter Lock (GIL). In order to circumvent this, the [`multiprocessing` module][multiprocessing] is used. However to take advantage of this, much of code has to be refactored so it is exposed in the global scope.
+Python is by default locked from using multiple processors on a given machine due to the Global Interpreter Lock (GIL). In order to circumvent this, the [`multiprocessing` module][multiprocessing] is used. However, to take advantage of this with `DEAP`, the `creator` classes and `toolbox` population initializers must be exposed in the module's global scope.
 
-There are some on-going discussions and work done with this issue. For more information, reference [here](https://github.com/DEAP/deap/pull/76).
+There are ongoing discussions and work done on this issue. For more information, see [DEAP PR #76](https://github.com/DEAP/deap/pull/76).
 
 ## GA Implementation of Movement Synchronization
 
 ### Individual (Chromosomes)
 
-Recall the `individual` used in the GA process from the `py-ga-VRPTW` stage is coded in the following manner. If the sub-routes of the individual is the following:
+Recall the `individual` used in the GA process from the `py-ga-VRPTW` stage is coded in the following manner. If the sub-routes of the individual are the following:
 
 ```python
 Sub-route 1: 0 - 5 - 3 - 2 - 0
@@ -91,101 +153,104 @@ Sub-route 2: 0 - 7 - 1 - 6 - 9 - 0
 Sub-route 3: 0 - 8 - 4 - 0
 ```
 
-then the `individual` is coded as a list of:
+then the `individual` is coded as a flat permutation list of customer IDs:
 
 ```python
 individual = [5, 3, 2, 7, 1, 6, 9, 8, 4]
 ```
 
-The process that decodes the `individual` into the sub-route representation is using a basic split procedure based on the capacity constraint of the vehicle. Each sub-route is split at the point which the addition of another customer will violate the capacity constraint.
+The process (`ind2route`) that decodes the `individual` into the sub-route representation uses a split procedure based on the capacity constraint of the vehicle and the depot due time. Each sub-route is split at the point where the addition of another customer would violate either constraint.
 
 ### Individual with Movement Synchronization (Chromosomes)
 
-For the purpose of representing both light and heavy resource sub-routes, a new representation is created based on the best individual from the `py-ga-VRPTW` stage. Using the same example as above, except this individual can be solely served by two sub-routes instead of one.
+For the purpose of representing both light and heavy resource sub-routes, a new representation is created based on the best individual from the `py-ga-VRPTW` stage. Using the same example as above, suppose this individual is decoded into two sub-routes served by heavy resources:
 
 ```python
 bestIndividual = [5, 3, 2, 7, 1, 6, 9, 8, 4]
 ```
 
-which is decoded into two sub-routes served by heavy resources
+which is decoded into two sub-routes served by heavy resources:
 
 ```python
-heavy-sub-route 1: 0 - 5 - 2 - 7 - 1 - 6 - 9 - 0
+heavy-sub-route 1: 0 - 5 - 3 - 2 - 7 - 1 - 6 - 9 - 0
 heavy-sub-route 2: 0 - 8 - 4 - 0
 ```
 
 #### Decode Individual with Movement Synchronization
 
 ```python
-splitLightCustomers(instance, heavy-sub-route, lightRange, lightCapacity)
+splitLightCustomers(instance, individual, lightRange=100, lightCapacity=50)
 ```
 
-This method selects the customers in the `heavy-sub-route` based on their distance and demand and clusters them into potential customer groups for the light resource to deliver to.
+This method (`gatspmv/mvCore.py`) selects interior customers in a `heavy-sub-route` based on their inter-customer distances and demands, greedily clustering them into customer groups that the light resource can serve.
 
 ##### Parameters
 
-- `instance` – A problem instance dict object, which can be loaded from a JSON format file.
-- `heavy-sub-route` – A heavy resource served sub-route from the individual.
-- `lightRange` - A constant representing the maximum distance the light resource is able to travel.
-- `lightCapacity` - A constant representing the maximum capacity the light resource is able to hold for each delivery.
+- `instance` – A problem instance dict object loaded from a JSON file.
+- `individual` – A heavy-resource sub-route (list of customer IDs) from Stage 1.
+- `lightRange` – Maximum distance the light resource is able to travel in a single sortie (including departure and reunion legs).
+- `lightCapacity` – Maximum total demand the light resource is able to carry per sortie.
 
 ##### Returns
 
-- A binary list representing the customers which the light resource will deliver to.
+- A binary list indicating which customers in the sub-route the light resource will deliver to:
 
 ```python
 light-list-sub-route-1 = [0, 0, 1, 1, 0, 0]
 light-list-sub-route-2 = [0, 0]
 ```
 
-This example indicates that the light resource is expected to deliver to customer 7 and 1 in sub-route 1 and not deliver in sub-route 2.
+This example indicates that the light resource is assigned to deliver to customers `7` and `1` in sub-route 1 and makes no deliveries in sub-route 2.
 
 #### Create Individuals with Movement Synchronization
 
-Since the `indidivual` created for the `py-ga-VRPTW` stage is a list of floats representing the customers. The initialization process for the `py-ga-VRPTW` stage uses the `creator()` tool from the standard toolbox of the `deap` library.
+Since the `individual` created for the `py-ga-VRPTW` stage is a flat list of customer IDs, its initialization uses the standard `creator()` and `initIterate` tools from `deap`.
 
-The initialization for the `individual-mv` (with movement synchronization) requires a custom function:
+The initialization for `individual-mv` (with movement synchronization) uses a custom function in `gatspmv/mvCore.py`:
 
 ```python
-initMVIndividuals(icls, light-list-sub-route, sub-route)
+initMVIndividuals(icls, lightList, individual)
 ```
 
-This method creates a custom `individual` to represent where the light resource will separate and join the heavy resource for its delivery, the actual light resource delivery, and the heavy resource delivery. 
+This method creates a custom `individual` structured as `[[L_1], [L_2], ..., [H]]`, where:
+- Each `[L_k] = [depart_customer, light_customer_1, ..., rejoin_customer]` represents a light resource sub-route (starting at a randomly chosen heavy-route customer before the cluster and rejoining at a randomly chosen heavy-route customer after the cluster).
+- `[H]` (always the last element `individual[-1]`) is the list of remaining customers served directly by the heavy resource.
 
 ##### Parameters
 
-- `icls` - The class representing the `individual`.
-- `light-list-sub-route` - The corresponding binary list indicating which customers are light deliverable in the sub-route.
-- `sub-route` - A sub-route from the best individual of `py-ga-VRPTW` stage.
+- `icls` – The DEAP class representing the `individual`.
+- `lightList` – The binary list from `splitLightCustomers` indicating which customers are light-deliverable in the sub-route.
+- `individual` – A sub-route from the best individual of the `py-ga-VRPTW` stage.
 
 ##### Returns
 
-- A properly classed `individual` ready to be used with the `deap` operators and algorithms.
+- A properly classed `individual` (`[[L_1], ..., [H]]`) ready to be used with `deap` operators and algorithms.
 
 ### Evaluation of Individuals with Movement Synchronization
 
 ```python
-evalTSPMS(MVIndividual, instance, unitCost=1.0, initCost=0, waitCost=0, delayCost=0, lightUnitCost=0.1, lightInitCost=0, lightWaitCost=0, lightDelayCost=0)
+evalTSPMS(MVindividual, instance, unitCost=1.0, waitCost=0, delayCost=0, speed=1,
+          lightUnitCost=1.0, lightWaitCost=0, lightDelayCost=0, lightSpeed=1)
 ```
 
-takes in the customized `individual` and the associated cost variables as parameters and calculates the total cost of `individual`. It incorporates wait costs of the resources accordingly. For example, if the light resource arrives at the rendezvous customer before the heavy resource, then there is a wait cost associated with the time the light resource spends waiting, and vice versa.
+Takes in the customized `MVindividual` and the associated cost/speed variables as parameters and calculates the total cost of the synchronized route. It incorporates synchronization waiting costs at rendezvous nodes accordingly: if the light resource arrives at the rendezvous customer before the heavy resource, a wait cost is incurred for the time the light resource spends waiting (`lightWaitCost`), and vice versa (`waitCost`).
 
 #### Parameters
 
-- `MVIndividual` - A customized `individual` representing a route with both light and heavy resource.
-- `instance` - A problem instance dict object, which can be loaded from a JSON format file.
-- `unitCost` - The cost per unit distance for the heavy resource
-- `initCost` - The one time initialization cost of the heavy resource
-- `waitCost` - The cost per unit time when the heavy resource has to wait to make the delivery or for the light resource to arrive
-- `delayCost` - The cost per unit time when the heavy resource is late to make the delivery
-- `lightUnitCost` - the cost per unit distance for the light resource
-- `lightInitCost` - The one time initialization cost for the light resource
-- `lightWaitCost` - The cost per unit time when the light resource has to wait to make the delivery or for the heavy resource to arrive
-- `lightDelayCost` - The cost per unit time when the light resource is late to make the delivery
+- `MVindividual` – A customized `individual` (`[[L_1], ..., [H]]`) representing a sub-route served by both light and heavy resources.
+- `instance` – A problem instance dict object loaded from a JSON file.
+- `unitCost` – Cost per unit distance for the heavy resource.
+- `waitCost` – Cost per unit time when the heavy resource has to wait (either for a customer's `ready_time` window or for the light resource to rejoin).
+- `delayCost` – Cost per unit time when the heavy resource arrives after a customer's `due_time`.
+- `speed` – Travel time multiplier per unit distance for the heavy resource.
+- `lightUnitCost` – Cost per unit distance for the light resource.
+- `lightWaitCost` – Cost per unit time when the light resource has to wait (either for a customer's `ready_time` window or for the heavy resource to arrive at the rendezvous point).
+- `lightDelayCost` – Cost per unit time when the light resource arrives after a customer's `due_time`.
+- `lightSpeed` – Travel time multiplier per unit distance for the light resource.
 
 #### Returns
 
-- A tuple containing the fitness value of the `individual`.
+- A 1-tuple `(fitness,)` containing the inverse total cost `1 / totalCost` of the `MVindividual`.
 
 ### Crossover of Individuals with Movement Synchronization
 
@@ -193,51 +258,61 @@ takes in the customized `individual` and the associated cost variables as parame
 cxSinglePointSwap(ind1, ind2)
 ```
 
-executes a single point crossover between rendezvous customers of light sub-routes of the two `individuals` based on probability. 
+Executes a single-point crossover between the rendezvous customers of paired light sub-routes of two `MVindividual` chromosomes. For each light sub-route, it swaps either the departure customer (`subRoute[0]`) or the reunion customer (`subRoute[-1]`) with 50% probability.
 
 #### Parameters
 
-- `ind` - A customized `individual` representing a route with both light and heavy resource
+- `ind1`, `ind2` – Two customized `MVindividual` chromosomes representing routes with both light and heavy resources.
 
 #### Returns
 
-- Two individuals with randomly swapped rendezvous points for the light resource sub-routes
+- A tuple `(ind1, ind2)` of two individuals with swapped rendezvous points for their light resource sub-routes.
 
 ## File Structure
 
-```
+```text
 ├── data/
 │   ├── json/
-│   │   ├── <Instance name>.json
-│   │   └── ...
+│   │   └── <Solomon instance>.json
 │   ├── json_customize/
-│   │   ├── <Customized instance name>.json
-│   │   └── ...
+│   │   └── <Customized instance>.json
+│   ├── plot/
+│   │   └── <Route plot>.png
 │   ├── text/
-│   │   ├── <Instance name>.txt
-│   │   └── ...
+│   │   └── <Solomon instance>.txt
 │   └── text_customize/
-│       ├── <Customized instance name>.txt
-│       └── ...
+│       └── <Customized instance>.txt
 ├── results/
-│   └── ...
+│   └── <Exported CSVs & fitness plots>
 ├── gatspmv/
 │   ├── __init__.py
-│   ├── mvcore.py
+│   └── mvCore.py
 ├── gavrptw/
 │   ├── __init__.py
 │   ├── core.py
 │   └── utils.py
 ├── instance_run_scripts/
-|   ├── __init__.py
-|   ├── <instance name>.py
+│   ├── __init__.py
+│   ├── sample_A-n32-k5.py
+│   ├── sample_A-n32-k5-VRPMV.py
+│   ├── sample_P-n10-k2.py
+│   ├── sample_P-n10-k2-VRPMV.py
+│   ├── sample_P-nX-X.py
+│   └── sample_P-nX-X-VRPMS.py
+├── text2json.py
+├── text2json_customize.py
+├── plotResults.py
+├── ind2route.py
+├── ga-spec.txt
 ├── requirements.txt
+├── AGENT.md
 ├── README.md
 ├── LICENSE
 └── .gitignore
 ```
 
 ## Further Reading
+
 **Distributed Evolutionary Algorithms in Python (DEAP)**
 
 - [Docs][deap-docs]
@@ -245,11 +320,13 @@ executes a single point crossover between rendezvous customers of light sub-rout
 - [PyPI][deap-pypi]
 
 ## References
+
 1. [Solomon's VRPTW Benchmark Problems][solomon]
 2. [100 Customers Instance Definitions][100-customers]
 3. [Distributed Evolutionary Algorithms in Python (DEAP)][deap-pypi]
 
 ## License
+
 [MIT License][license]
 
 [repository]: https://github.com/paulliwali/py-ga-VRPTW "paulliwali/py-ga-VRPTW"
