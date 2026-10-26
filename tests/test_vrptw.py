@@ -62,3 +62,17 @@ def test_mut_inverse_indexes():
     mutant, = mutInverseIndexes(ind[:])
     assert sorted(mutant) == list(range(1, 21))
     assert len(mutant) == 20
+
+
+def test_two_opt(instance_a_n32_k5):
+    from gavrptw.core import two_opt
+    individual = [5, 10, 15, 22, 9, 11, 28, 18, 6, 3, 2, 17, 19, 31, 21, 13, 23, 4, 8, 29, 27, 14, 24, 30, 16, 12, 1, 7, 26, 25, 20]
+    fit_before, = evalVRPTW(individual, instance_a_n32_k5)
+    opt_individual = two_opt(individual, instance_a_n32_k5)
+    fit_after, = evalVRPTW(opt_individual, instance_a_n32_k5)
+
+    # 2-opt must preserve all customer IDs
+    assert sorted(opt_individual) == list(range(1, 32))
+    # 2-opt cost must be equal or lower than unoptimized
+    assert (1.0 / fit_after) <= (1.0 / fit_before) + 1e-6
+

@@ -294,6 +294,35 @@ def mutInverseIndexes(individual):
     return individual,
 
 
+def two_opt_subroute(subroute, dist_matrix):
+    """Applies 2-opt local search to a single subroute starting and ending at depot (0)."""
+    full_route = [0] + list(subroute) + [0]
+    improved = True
+    while improved:
+        improved = False
+        n = len(full_route)
+        for i in range(1, n - 2):
+            for j in range(i + 1, n - 1):
+                curr_dist = dist_matrix[full_route[i - 1]][full_route[i]] + dist_matrix[full_route[j]][full_route[j + 1]]
+                new_dist = dist_matrix[full_route[i - 1]][full_route[j]] + dist_matrix[full_route[i]][full_route[j + 1]]
+                if new_dist < curr_dist - 1e-6:
+                    full_route[i:j + 1] = reversed(full_route[i:j + 1])
+                    improved = True
+                    break
+            if improved:
+                break
+    return full_route[1:-1]
+
+
+def two_opt(individual, instance, speed=1.0):
+    """Applies 2-opt local search to each sub-route of an individual and re-flattens it."""
+    routes = ind2route(individual, instance, speed=speed)
+    dist_matrix = instance['distance_matrix']
+    opt_routes = [two_opt_subroute(r, dist_matrix) for r in routes]
+    return [cust for sub in opt_routes for cust in sub]
+
+
+
 def gaVRPTW(instName, unitCost, waitCost, delayCost, indSize, popSize, cxPb, mutPb, NGen, exportCSV=False, customizeData=False, speed=1.0):
     if customizeData:
         jsonDataDir = os.path.join(BASE_DIR, 'data', 'json_customize')

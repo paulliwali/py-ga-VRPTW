@@ -302,3 +302,27 @@ def cxSinglePointSwap(ind1, ind2):
             subRoute1[-1] = temp2
             subRoute2[-1] = temp1
     return ind1, ind2
+
+
+def mutMVRendezvous(individual, lightList, subRoute, indpb=0.2):
+    """Mutates an MV individual by re-sampling departure or reunion rendezvous points
+
+    from valid adjacent heavy sub-route segments.
+    """
+    splitLocation = numpy.where(numpy.roll(lightList, 1) != lightList)[0]
+    splitList = numpy.split(subRoute, splitLocation)
+
+    for idx, i in enumerate(range(2, len(splitList), 2)):
+        if random.random() < indpb:
+            lightRoute = individual[idx]
+            preceding_heavy = list(splitList[i - 2])
+            succeeding_heavy = list(splitList[i])
+            if random.random() < 0.5 and len(preceding_heavy) > 1:
+                candidates = [c for c in preceding_heavy if c != lightRoute[0]]
+                if candidates:
+                    lightRoute[0] = int(random.choice(candidates))
+            elif len(succeeding_heavy) > 1:
+                candidates = [c for c in succeeding_heavy if c != lightRoute[-1]]
+                if candidates:
+                    lightRoute[-1] = int(random.choice(candidates))
+    return individual,

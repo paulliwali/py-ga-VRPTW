@@ -42,7 +42,7 @@ def gaTSPMV(instName, tsp, unitCost, waitCost, delayCost, speed, indSize, popSiz
                      lightUnitCost=lightUnitCost, lightWaitCost=lightWaitCost, lightDelayCost=lightDelayCost, lightSpeed=lightSpeed)
     toolbox.register('select', tools.selRoulette)
     toolbox.register('mate', mvcore.cxSinglePointSwap)
-    toolbox.register('mutate', core.mutInverseIndexes)
+    toolbox.register('mutate', mvcore.mutMVRendezvous, lightList=splitLightList, subRoute=tsp)
 
     csvData = []
     print('Start of evolution')

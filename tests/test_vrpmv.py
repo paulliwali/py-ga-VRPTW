@@ -90,6 +90,24 @@ def test_cx_single_point_swap():
     assert c2[0][1:-1] == [4, 22]
 
 
+def test_mut_mv_rendezvous():
+    from gatspmv.mvcore import mutMVRendezvous
+    subRoute = [8, 11, 4, 22, 29, 23, 30, 14]
+    lightList = [0, 0, 1, 1, 0, 0, 0, 0]
+    ind = [[11, 4, 22, 29], [8, 11, 29, 23, 30, 14]]
+
+    mutated, = mutMVRendezvous([sub[:] for sub in ind], lightList, subRoute, indpb=1.0)
+    # Interior light customers [4, 22] must never change
+    assert mutated[0][1:-1] == [4, 22]
+    # Departure node must be in preceding heavy segment
+    assert mutated[0][0] in [8, 11]
+    # Reunion node must be in succeeding heavy segment
+    assert mutated[0][-1] in [29, 23, 30, 14]
+    # Heavy route must remain intact
+    assert mutated[1] == [8, 11, 29, 23, 30, 14]
+
+
+
 def test_visualize_routes(instance_a_n32_k5, tmp_path):
     subroutes = [
         [[11, 4, 22, 29], [8, 11, 29, 23, 30, 14]],
