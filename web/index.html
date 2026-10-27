@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VRPMV: Vehicle Routing with Movement Synchronization — Paul Deng</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🚚</text></svg>">
+</head>
+<body>
+  <div class="ambient-glow"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="logo-badge">MV</div>
+      <div class="title-group">
+        <h1>VRPMV: Movement Synchronization Visualizer</h1>
+        <p>Two-Stage Genetic Algorithm for Truck &amp; Drone Coordinated Routing</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="openAboutBtn">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+        About VRPMV
+      </button>
+      <a class="btn btn-ghost" href="https://github.com/paulliwali/py-ga-VRPTW" target="_blank" rel="noopener">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+      <a class="btn btn-primary" href="https://pauldeng.me" target="_blank" rel="noopener">
+        pauldeng.me &rarr;
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="app-container">
+    <!-- Sidebar Controls -->
+    <aside class="sidebar">
+      <!-- Benchmark Instance Card -->
+      <div class="card">
+        <div class="card-title">Problem Instance</div>
+        <div class="form-group">
+          <label class="form-label" for="instanceSelect">Select Benchmark Dataset</label>
+          <select id="instanceSelect" class="form-select">
+            <option value="A-n32-k5">A-n32-k5 (31 Customers, 5 Vehicles)</option>
+            <option value="P-n10-k2">P-n10-k2 (10 Customers, 2 Vehicles)</option>
+            <option value="P-n20-0">P-n20-0 (20 Customers, 4 Vehicles)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Execution Mode Tabs -->
+      <div class="card">
+        <div class="tabs">
+          <button class="tab-btn active" id="tabSolutions">Benchmark Solutions</button>
+          <button class="tab-btn" id="tabLiveGA">Live GA Solver</button>
+        </div>
+
+        <!-- Mode 1: Benchmark Solutions Panel -->
+        <div id="panelSolutions">
+          <div class="form-group">
+            <label class="form-label">Solution Stage</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+              <button class="btn btn-ghost" id="stage1Btn">Stage 1: VRPTW</button>
+              <button class="btn btn-primary" id="stage2Btn">Stage 2: VRPMV</button>
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem;">
+              Stage 1 solves pure truck routing. Stage 2 clusters customers for drone sorties with rendezvous synchronization.
+            </p>
+          </div>
+        </div>
+
+        <!-- Mode 2: Live GA Panel -->
+        <div id="panelLiveGA" style="display: none;">
+          <div class="form-group">
+            <button class="btn btn-success" id="runLiveGABtn" style="width: 100%; justify-content: center;">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              Run In-Browser GA
+            </button>
+          </div>
+          <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div>
+              <label class="form-label">Generations</label>
+              <input type="number" id="gaGenInput" class="form-input" value="100" min="10" max="1000">
+            </div>
+            <div>
+              <label class="form-label">Population</label>
+              <input type="number" id="gaPopInput" class="form-input" value="100" min="20" max="500">
+            </div>
+          </div>
+          <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div>
+              <label class="form-label">Crossover (cxPb)</label>
+              <input type="number" id="gaCxInput" class="form-input" value="0.85" step="0.05" min="0" max="1">
+            </div>
+            <div>
+              <label class="form-label">Mutation (mutPb)</label>
+              <input type="number" id="gaMutInput" class="form-input" value="0.15" step="0.05" min="0" max="1">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">2-Opt Local Search</label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; cursor: pointer;">
+              <input type="checkbox" id="ga2OptCheck" checked> Enable Memetic 2-Opt Refinement
+            </label>
+          </div>
+          <div id="gaProgressText" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--accent-cyan); margin-top: 0.5rem; display: none;">
+            Evolving: Gen <span id="curGenVal">0</span> / <span id="totGenVal">100</span> | Best: <span id="curBestVal">0.0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live KPI Metrics -->
+      <div class="card">
+        <div class="card-title">Solution Metrics</div>
+        <div class="kpi-grid">
+          <div class="kpi-box">
+            <div class="kpi-label">Total Cost</div>
+            <div class="kpi-val" id="metricCost">-</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Vehicles Used</div>
+            <div class="kpi-val" id="metricVehicles">-</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Drone Sorties</div>
+            <div class="kpi-val" id="metricDrones">-</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-label">Sync Wait Delay</div>
+            <div class="kpi-val" id="metricSyncWait">-</div>
+          </div>
+          <div class="kpi-box kpi-savings" id="savingsBox">
+            <div class="kpi-label">Efficiency Gain (Truck + Drone vs Pure Truck)</div>
+            <div class="kpi-val" id="metricSavings">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle Filter Toggles -->
+      <div class="card">
+        <div class="card-title">
+          <span>Active Routes</span>
+          <button class="btn btn-ghost" id="selectAllVehiclesBtn" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Toggle All</button>
+        </div>
+        <div class="vehicle-list" id="vehicleList">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas & Visualization Area -->
+    <section class="canvas-wrapper">
+      <div class="canvas-card">
+        <div class="canvas-header">
+          <div class="canvas-title">
+            <span id="canvasTitleText">Stage 2: Movement Synchronized (Truck + Drone)</span>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><span class="line-solid"></span> Heavy Truck Route</div>
+            <div class="legend-item"><span class="line-dashed"></span> Light Drone Route</div>
+            <div class="legend-item"><span class="dot-rendezvous"></span> Rendezvous Node</div>
+          </div>
+        </div>
+
+        <canvas id="routeCanvas"></canvas>
+        <div id="nodeTooltip"></div>
+
+        <!-- Animation Controls Bar -->
+        <div class="canvas-controls-bar">
+          <div class="anim-controls">
+            <button class="btn btn-primary" id="playBtn" style="padding: 0.4rem 0.75rem;">
+              <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Play
+            </button>
+            <button class="btn btn-ghost" id="resetAnimBtn" style="padding: 0.4rem 0.75rem;">Reset</button>
+          </div>
+          <div class="progress-container">
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);" id="timeLabel">0.0h</span>
+            <input type="range" class="progress-bar" id="timeSlider" min="0" max="100" value="0">
+            <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);" id="maxTimeLabel">1.0h</span>
+          </div>
+          <div class="anim-controls">
+            <select id="animSpeedSelect" class="form-select" style="padding: 0.3rem 0.5rem; font-size: 0.75rem; width: 80px;">
+              <option value="1">1x Speed</option>
+              <option value="2" selected>2x Speed</option>
+              <option value="5">5x Speed</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline & Gantt View -->
+      <div class="card timeline-card">
+        <div class="card-title">
+          <span>Temporal Movement Synchronization (Gantt Timeline)</span>
+          <span style="font-size: 0.72rem; font-weight: normal; color: var(--text-muted);">
+            Blue: Heavy Truck | Green: Light Drone | Amber Stripe: Sync Waiting
+          </span>
+        </div>
+        <div class="timeline-container" id="timelineContainer">
+          <!-- Dynamically populated tracks -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- About Modal -->
+  <div class="modal-overlay" id="aboutModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>About Vehicle Routing with Movement Synchronization (VRPMV)</h2>
+        <button class="close-btn" id="closeAboutBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          The <strong>Vehicle Routing Problem with Movement Synchronization (VRPMV / VRPMS)</strong> extends classic delivery routing by coordinating two complementary resources:
+        </p>
+        <ul>
+          <li><strong>Heavy Resource (Truck)</strong>: High capacity and long range, but slower speed and higher operating cost per mile.</li>
+          <li><strong>Light Resource (Drone or Courier)</strong>: Low capacity and battery-constrained range, but faster speed and fractional operating cost.</li>
+        </ul>
+        <p>
+          Rather than returning independently to the depot, the light resource <em>launches from the heavy truck</em> at an optimal customer node, delivers to a high-density customer cluster, and <em>rejoins (rendezvous with) the heavy truck</em> at a downstream customer node.
+        </p>
+        <p>
+          This two-stage Genetic Algorithm decouples the combinatorial complexity into:
+        </p>
+        <ul>
+          <li><strong>Stage 1</strong>: Solves the macro vehicle routing with time windows using partially matched crossover (PMX) and elitist selection.</li>
+          <li><strong>Stage 2</strong>: Greedily clusters interior customers within drone capacity/range constraints, and optimizes launch/rendezvous points via custom rendezvous crossover and mutation operators.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Data and Scripts -->
+  <script src="data/instances.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
