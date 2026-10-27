@@ -2,9 +2,10 @@
 
 ## 1. Project Overview
 
-**`py-ga-VRPTW` / `py-ga-VRPMV`** is a Python 2.7 Genetic Algorithm (GA) framework built on [DEAP](https://github.com/DEAP/deap) for solving:
-1. **VRPTW** (Vehicle Routing Problem with Time Windows) — forked from [`iRB-Lab/py-ga-VRPTW`](https://github.com/iRB-Lab/py-ga-VRPTW) with fixes to Partially Matched Crossover (PMX), elitist selection, and `multiprocessing` support.
+**`py-ga-VRPTW` / `py-ga-VRPMV`** is a Python 3.12+ Genetic Algorithm (GA) framework built on [DEAP](https://github.com/DEAP/deap) for solving:
+1. **VRPTW** (Vehicle Routing Problem with Time Windows) — forked from [`iRB-Lab/py-ga-VRPTW`](https://github.com/iRB-Lab/py-ga-VRPTW) with fixes to Partially Matched Crossover (PMX), elitist selection, 2-opt local search, and `multiprocessing` support.
 2. **VRPMV / VRPMS** (Vehicle Routing Problem with Movement Synchronization) — an extension where a **heavy resource** (e.g., truck) teams up with a **light resource** (e.g., drone or courier). The light resource departs from the heavy vehicle at a customer node, serves a cluster of customers within its range and capacity limits, and rejoins (rendezvous with) the heavy vehicle at a downstream customer node.
+3. **Interactive Web Visualizer (`web/`)** — A static web application designed for [pauldeng.me](https://pauldeng.me) featuring map rendering, Gantt synchronization timelines, vehicle playback animation, and an in-browser live GA engine.
 
 ---
 
@@ -20,6 +21,7 @@ The active solver workflow (`instance_run_scripts/`) decouples the problem into 
   - **Selection**: Keeps `1` elite individual untouched past crossover/mutation; forms the mating pool from the top `10%` (`tools.selBest`) + `90% - 1` (`tools.selRoulette`).
   - **Crossover (`gavrptw.core.cxPartialyMatched`)**: DEAP's PMX adapted for 1-indexed customer IDs (offsets positions by `-1` so customer `1..N` maps to index `0..N-1`).
   - **Mutation (`gavrptw.core.mutInverseIndexes`)**: Reverses a randomly sampled contiguous slice of the chromosome.
+  - **Memetic Refinement (`gavrptw.core.two_opt`)**: 2-opt local search operator that eliminates crossing route edges and refines sub-route distance.
 - **Parallelism**: Uses `multiprocessing.Pool().map` registered to `toolbox.map`.
 
 ### Stage 2: Movement Synchronization per Sub-Route (`gatspmv`)
@@ -107,37 +109,24 @@ Strict line-number-based format parsed by `gavrptw.utils.text2json()`:
 
 Read this section carefully before modifying or running code:
 
-1. **Python 2.7 Codebase**:
-   - Uses Python 2 `print` statements, `xrange()` (in `gavrptw/core.py:cxPartialyMatched`), and `df.append()` (in `gavrptw/utils.py`).
-   - Run scripts with a Python 2.7 interpreter, or port `print` / `xrange` / relative imports if migrating to Python 3.
+1. **Python 3.12+ Modern Stack**:
+   - Modernized from legacy Python 2.7. All `print` calls use `print(...)`, `xrange` replaced with `range`, and packaging is managed via `pyproject.toml` and `uv`.
+   - Run tests anytime with `pytest -v`.
 
-2. **Module Filename Casing (`gatspmv/mvCore.py` vs `mvcore`)**:
-   - The file on disk is `gatspmv/mvCore.py` (capital `C`), but scripts import `from gatspmv import mvcore` (lowercase `c`).
-   - On case-sensitive filesystems (Linux) or strict module loaders, `from gatspmv import mvcore` will raise `ImportError`. Even on macOS/Windows, Python's import machinery can be case-sensitive for module names. If importing fails, either import `mvCore as mvcore` or rename `mvCore.py` to `mvcore.py`.
+2. **Module Filenames & Compatibility**:
+   - `gatspmv/mvcore.py` is lowercase, and `gatspmv/__init__.py` aliases `mvCore = mvcore` for complete backwards compatibility across macOS, Linux, and Windows.
 
 3. **`"deport"` Spelling in JSON & Code**:
    - The depot key is spelled `"deport"` across `gavrptw/utils.py`, `gavrptw/core.py`, and all generated `.json` files. Do **not** change `"deport"` to `"depot"` in code without updating `utils.py` and regenerating all JSON files.
 
-4. **Function Signature Drift Across Sample Scripts**:
-   - Commit `8b290f5` updated `gavrptw.core.evalVRPTW` and `gatspmv.mvCore.evalTSPMS` to accept `speed` (and `lightSpeed`) and **removed** `initCost` (and `lightInitCost`).
-   - `instance_run_scripts/sample_P-nX-X.py` and `instance_run_scripts/sample_P-nX-X-VRPMS.py` match the current signatures in `core.py` and `mvCore.py`.
-   - Older scripts (`sample_A-n32-k5.py`, `sample_A-n32-k5-VRPMV.py`, `sample_P-n10-k2.py`, `sample_P-n10-k2-VRPMV.py`, and `ind2route.py`) still pass `initCost=initCost` / `lightInitCost=lightInitCost` to `evalVRPTW` / `evalTSPMS` and will raise `TypeError: evalVRPTW() got an unexpected keyword argument 'initCost'` unless `initCost` is removed from their `toolbox.register('evaluate', ...)` calls.
+4. **Dedicated Stage 2 Mutation (`mutMVRendezvous`)**:
+   - Resolved the previous limitation where `mutPb = 0` was required. The new `mutMVRendezvous` operator mutates departure and reunion rendezvous points without perturbing the compound chromosome structure `[[L_1], ..., [H]]`.
 
-5. **Commented-Out Imports in `gavrptw/core.py`**:
-   - Lines 9–10 of `gavrptw/core.py` (`#from . import BASE_DIR` and `#from .utils import makeDirsForFile, exist`) were commented out during multiprocessing refactoring.
-   - As a result, `core.gaVRPTW()` and `core.gaVRPMS()` inside `gavrptw/core.py` cannot be called directly without uncommenting those imports; the active `gaVRPTW` and `gaTSPMV` drivers live in `instance_run_scripts/`.
+5. **Memetic 2-Opt Refinement**:
+   - `gavrptw.core.two_opt_subroute` and `two_opt` are available for untangling sub-route edges.
 
-6. **Trailing Blank Lines in `.txt` Instance Files**:
-   - `gavrptw.utils.text2json()` computes `numOfCustomers = size - 9` where `size` is the total line count of the `.txt` file.
-   - A trailing blank line at the end of a `.txt` file (like line 42 in `data/text_customize/A-n32-k5.txt` if empty) increments `size` and causes `KeyError` unless there is no trailing newline or empty lines are stripped.
-
-7. **Mutation in Stage 2 (`gaTSPMV`)**:
-   - `gaTSPMV` registers `core.mutInverseIndexes` as `toolbox.mutate`, which reverses a slice of the top-level individual list `[[L_1], ..., [H]]`.
-   - Because `evalTSPMS` assumes `route[-1]` is the heavy route `[H]` and `route[:-1]` are light routes, running `mutInverseIndexes` on an MV individual can move `[H]` out of index `-1` and break evaluation. Keep `mutPb = 0` in Stage 2 unless a custom MV mutation operator is implemented.
-
-8. **Route Visualization (`gavrptw.utils.visualizeRoutes`)**:
-   - Works for standard VRPTW routes (`containsLightResource=False`), saving plots to `data/plot/<instanceName>.png`.
-   - The `else:` block for `containsLightResource=True` is accidentally indented under the `for subRoutes in route:` loop (making it a `for..else` block) and is marked `# TODO`.
+6. **Web Visualizer (`web/`)**:
+   - A static web app located in `web/` (`index.html`, `style.css`, `app.js`, `data/instances.js`) with canvas rendering, Gantt timeline, vehicle playback animation, and in-browser GA solver. Ready to host directly on `pauldeng.me`.
 
 ---
 
@@ -146,17 +135,22 @@ Read this section carefully before modifying or running code:
 Run all commands from the repository root (`/Users/pauldeng/Documents/code/py-ga-VRPTW`):
 
 ```bash
-# 1. Convert text benchmark instances to JSON
+# 1. Run automated test suite
+pytest -v
+
+# 2. Convert text benchmark instances to JSON
 python text2json.py            # data/text/*.txt -> data/json/*.json
 python text2json_customize.py  # data/text_customize/*.txt -> data/json_customize/*.json
 
-# 2. Run Stage 1: Heavy-vehicle VRPTW GA (outputs sub-routes and CSV stats to results/)
+# 3. Run Stage 1: Heavy-vehicle VRPTW GA (outputs sub-routes and CSV stats to results/)
 python instance_run_scripts/sample_P-nX-X.py
 
-# 3. Run Stage 2: Movement Synchronization GA on Stage 1 sub-routes
+# 4. Run Stage 2: Movement Synchronization GA on Stage 1 sub-routes
 # (Paste the bestVRP sub-routes from Stage 1 into bestVRP in sample_P-nX-X-VRPMS.py)
 python instance_run_scripts/sample_P-nX-X-VRPMS.py
 
-# 4. Plot fitness evolution curves from results/*.csv -> results/*.png
-python plotResults.py
+# 5. Launch interactive web visualizer locally
+python -m http.server 8080 --directory web
+# Open http://localhost:8080
 ```
+
