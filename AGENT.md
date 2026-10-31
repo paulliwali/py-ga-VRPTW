@@ -150,7 +150,12 @@ python instance_run_scripts/sample_P-nX-X.py
 python instance_run_scripts/sample_P-nX-X-VRPMS.py
 
 # 5. Launch interactive web visualizer locally
-python -m http.server 8080 --directory web
-# Open http://localhost:8080
+python server.py
+# Open http://localhost:8080 (or /health for health check)
+
+# 6. Production Railway Deployment
+# Live URL: https://py-ga-vrpmv-production.up.railway.app
+# Deployment managed via Dockerfile, railway.toml, Procfile, and Railway CLI:
+railway up --detach
 ```
 
