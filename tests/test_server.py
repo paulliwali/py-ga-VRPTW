@@ -23,12 +23,13 @@ def test_server_health():
             assert response.status == 200
             content = response.read().decode("utf-8")
             assert "ok" in content
+            assert "drone-delivery" in content
 
         # Test index.html
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as response:
             assert response.status == 200
             html = response.read().decode("utf-8")
-            assert "VRPMV" in html
+            assert "Drone Delivery" in html
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -154,7 +154,8 @@ python server.py
 # Open http://localhost:8080 (or /health for health check)
 
 # 6. Production Railway Deployment
-# Live URL: https://py-ga-vrpmv-production.up.railway.app
+# Railway project: drone-delivery
+# Live URL: https://drone-delivery-production.up.railway.app
 # Deployment managed via Dockerfile, railway.toml, Procfile, and Railway CLI:
 railway up --detach
 ```

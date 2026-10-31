@@ -1,10 +1,10 @@
-# py-ga-VRPMV
+# Drone Delivery (`py-ga-VRPMV`)
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Railway-0B0D0E?style=flat-square&logo=railway)](https://py-ga-vrpmv-production.up.railway.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Railway-0B0D0E?style=flat-square&logo=railway)](https://drone-delivery-production.up.railway.app)
 
-Forked from [iRB-Lab/py-ga-VRPTW](https://github.com/iRB-Lab/py-ga-VRPTW) to implement a two-stage Genetic Algorithm (GA) solution for the **Vehicle Routing Problem with Movement Synchronization (VRPMV / VRPMS)**.
+A two-stage Genetic Algorithm (GA) solution for coordinated **Drone Delivery** and vehicle routing with movement synchronization (VRPMV / VRPMS). Heavy vehicles (trucks) team up with light aerial resources (drones) that launch from customer locations, deliver to interior customer clusters, and rendezvous with trucks downstream.
 
-- **Interactive Web Visualizer**: Hosted live at [https://py-ga-vrpmv-production.up.railway.app](https://py-ga-vrpmv-production.up.railway.app)
+- **Interactive Web Visualizer**: Hosted live at [https://drone-delivery-production.up.railway.app](https://drone-delivery-production.up.railway.app)
 - Implemented a fix to the Partially Matched Crossover (PMX) function for 1-indexed customer IDs
 - Implemented an elitist selection process to improve GA convergence
 - Enabled multi-processing with `DEAP` using Python's `multiprocessing` module
