@@ -540,8 +540,31 @@
     state.gaGeneration = 0;
     state.gaBestCost = Infinity;
 
+    function twoOptSubroute(route) {
+      if (route.length < 4) return route;
+      const full = [0, ...route, 0];
+      let improved = true;
+      while (improved) {
+        improved = false;
+        for (let i = 1; i < full.length - 2; i++) {
+          for (let j = i + 1; j < full.length - 1; j++) {
+            const dCurr = state.distMatrix[full[i - 1]][full[i]] + state.distMatrix[full[j]][full[j + 1]];
+            const dNew = state.distMatrix[full[i - 1]][full[j]] + state.distMatrix[full[i]][full[j + 1]];
+            if (dNew < dCurr - 1e-5) {
+              const rev = full.slice(i, j + 1).reverse();
+              full.splice(i, rev.length, ...rev);
+              improved = true;
+              break;
+            }
+          }
+          if (improved) break;
+        }
+      }
+      return full.slice(1, -1);
+    }
+
     function evaluateIndividual(ind) {
-      const routes = [];
+      let routes = [];
       const cap = state.instance.vehicle_capacity;
       const due = state.instance.nodes.deport.due_time;
       let sub = [];
@@ -568,6 +591,10 @@
         }
       }
       if (sub.length) routes.push(sub);
+
+      if (use2Opt) {
+        routes = routes.map(twoOptSubroute);
+      }
 
       let totalDist = 0;
       routes.forEach(r => {
@@ -623,8 +650,8 @@
       // Evaluate
       const evaluated = pop.map(ind => ({ ind, ...evaluateIndividual(ind) }));
       evaluated.sort((a, b) => a.cost - b.cost);
-
       if (evaluated[0].cost < state.gaBestCost) {
+        if (use2Opt) evaluated[0].ind = evaluated[0].routes.flat();
         state.gaBestCost = evaluated[0].cost;
         state.gaBestInd = evaluated[0].ind;
 

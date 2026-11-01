@@ -330,130 +330,67 @@ window.VRPMV_DATA = {
     },
     "solutions": {
       "vrptw": {
-        "name": "Stage 1: Heavy Truck VRPTW",
-        "cost": 995.5,
+        "name": "Stage 1: Heavy Truck VRPTW (Optimal CVRP)",
+        "cost": 787.2,
         "routes": [
-          [
-            8,
-            11,
-            4,
-            22,
-            29,
-            23,
-            30,
-            14
-          ],
-          [
-            12,
-            16,
-            5,
-            25,
-            10,
-            20
-          ],
-          [
-            15,
-            9,
-            6,
-            3,
-            1,
-            27,
-            26
-          ],
-          [
-            19,
-            17,
-            31,
-            21,
-            13,
-            28,
-            18
-          ],
-          [
-            24,
-            2,
-            7
-          ]
+          [21, 31, 19, 17, 13, 7, 26],
+          [12, 1, 16, 30],
+          [27, 24],
+          [29, 18, 8, 9, 22, 15, 10, 25, 5, 20],
+          [14, 28, 11, 4, 23, 2, 3, 6]
         ]
       },
       "vrpmv": {
         "name": "Stage 2: Movement Synchronized (Truck + Drone)",
-        "cost": 1498.0,
+        "cost": 962.1,
         "routes": [
           {
             "vehicle_id": 1,
-            "heavy": [
-              8,
-              11,
-              29,
-              23,
-              30,
-              14
-            ],
+            "heavy": [21, 31, 13, 7, 26],
             "light": [
               {
-                "depart": 11,
-                "rejoin": 29,
-                "customers": [
-                  4,
-                  22
-                ]
+                "depart": 31,
+                "rejoin": 13,
+                "customers": [19, 17]
               }
             ]
           },
           {
             "vehicle_id": 2,
-            "heavy": [
-              12,
-              16,
-              5,
-              25,
-              10,
-              20
-            ],
+            "heavy": [12, 1, 16, 30],
             "light": []
           },
           {
             "vehicle_id": 3,
-            "heavy": [
-              15,
-              9,
-              6,
-              3,
-              1,
-              27,
-              26
-            ],
+            "heavy": [27, 24],
             "light": []
           },
           {
             "vehicle_id": 4,
-            "heavy": [
-              19,
-              17,
-              28,
-              18
-            ],
+            "heavy": [29, 18, 8, 10, 20],
             "light": [
               {
-                "depart": 19,
-                "rejoin": 28,
-                "customers": [
-                  31,
-                  21,
-                  13
-                ]
+                "depart": 18,
+                "rejoin": 10,
+                "customers": [9, 22, 15]
+              },
+              {
+                "depart": 10,
+                "rejoin": 20,
+                "customers": [25, 5]
               }
             ]
           },
           {
             "vehicle_id": 5,
-            "heavy": [
-              24,
-              2,
-              7
-            ],
-            "light": []
+            "heavy": [14, 28, 11, 3, 6],
+            "light": [
+              {
+                "depart": 11,
+                "rejoin": 3,
+                "customers": [4, 23, 2]
+              }
+            ]
           }
         ]
       }
