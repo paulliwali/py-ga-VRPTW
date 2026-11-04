@@ -304,6 +304,45 @@ header {
   color: var(--accent-emerald);
 }
 
+.kpi-comparison {
+  grid-column: span 2;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8));
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.gap-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.gap-badge.optimal {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--accent-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.gap-badge.good {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.gap-badge.moderate {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.gap-badge.poor {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
 /* Vehicle Checkbox List */
 .vehicle-list {
   display: flex;
@@ -411,6 +450,47 @@ header {
   border-radius: 50%;
   background: var(--accent-amber);
   box-shadow: 0 0 6px var(--accent-amber);
+}
+
+.line-ghost {
+  width: 18px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.8) 0, rgba(148, 163, 184, 0.8) 3px, transparent 3px, transparent 6px);
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.compare-table th, .compare-table td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.compare-table th {
+  background: rgba(10, 14, 23, 0.6);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.compare-table td {
+  font-family: var(--font-mono);
+}
+
+.compare-table td:first-child {
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.compare-table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 #routeCanvas {

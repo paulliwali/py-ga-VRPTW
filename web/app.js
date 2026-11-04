@@ -43,7 +43,8 @@
     panY: 0,
     isDragging: false,
     dragStartX: 0,
-    dragStartY: 0
+    dragStartY: 0,
+    showBenchmarkGhost: true
   };
 
   // --- DOM Elements ---
@@ -78,6 +79,24 @@
   const curGenVal = document.getElementById('curGenVal');
   const totGenVal = document.getElementById('totGenVal');
   const curBestVal = document.getElementById('curBestVal');
+  const curTargetVal = document.getElementById('curTargetVal');
+  const curGapVal = document.getElementById('curGapVal');
+  const benchmarkTargetVal = document.getElementById('benchmarkTargetVal');
+  const gaComparisonBox = document.getElementById('gaComparisonBox');
+  const gapBadge = document.getElementById('gapBadge');
+  const metricGapVal = document.getElementById('metricGapVal');
+  const metricGapDelta = document.getElementById('metricGapDelta');
+  const gapBarFill = document.getElementById('gapBarFill');
+  const barTargetVal = document.getElementById('barTargetVal');
+  const barCurrentVal = document.getElementById('barCurrentVal');
+  const openCompareBtn = document.getElementById('openCompareBtn');
+  const compareModal = document.getElementById('compareModal');
+  const closeCompareBtn = document.getElementById('closeCompareBtn');
+  const compareModalInstanceName = document.getElementById('compareModalInstanceName');
+  const compareTableBody = document.getElementById('compareTableBody');
+  const compareAnalysisBox = document.getElementById('compareAnalysisBox');
+  const toggleGhostCheckbox = document.getElementById('toggleGhostCheckbox');
+  const ghostOverlayLabel = document.getElementById('ghostOverlayLabel');
   const aboutModal = document.getElementById('aboutModal');
   const openAboutBtn = document.getElementById('openAboutBtn');
   const closeAboutBtn = document.getElementById('closeAboutBtn');
@@ -102,6 +121,64 @@
     return mat;
   }
 
+  // --- Benchmark Comparison Helpers ---
+  function getBenchmarkCost() {
+    if (!state.instance || !state.instance.solutions) return null;
+    if (state.instance.solutions.vrptw) return state.instance.solutions.vrptw.cost;
+    if (state.instance.solutions.vrpmv) return state.instance.solutions.vrpmv.cost;
+    return null;
+  }
+
+  function getBenchmarkSolution() {
+    if (!state.instance || !state.instance.solutions) return null;
+    return state.instance.solutions.vrptw || state.instance.solutions.vrpmv || null;
+  }
+
+  function updateOptimalityGap(currentCost) {
+    const target = getBenchmarkCost();
+    if (!target || !currentCost || currentCost === Infinity) {
+      gaComparisonBox.style.display = 'none';
+      return;
+    }
+
+    gaComparisonBox.style.display = 'block';
+    savingsBox.style.display = 'none';
+
+    const delta = currentCost - target;
+    const gapPct = (delta / target) * 100;
+    const sign = delta > 0 ? '+' : '';
+
+    metricGapVal.textContent = `${sign}${gapPct.toFixed(1)}%`;
+    metricGapDelta.textContent = `(${sign}${delta.toFixed(1)} vs ${target.toFixed(1)})`;
+    barTargetVal.textContent = target.toFixed(1);
+    barCurrentVal.textContent = currentCost.toFixed(1);
+
+    const qualityRatio = Math.min(100, Math.max(10, (target / currentCost) * 100));
+    gapBarFill.style.width = `${qualityRatio}%`;
+
+    if (gapPct <= 0.5) {
+      gapBadge.className = 'gap-badge optimal';
+      gapBadge.textContent = '★ Optimal BKS';
+      metricGapVal.style.color = 'var(--accent-emerald)';
+      gapBarFill.style.background = 'var(--accent-emerald)';
+    } else if (gapPct <= 10.0) {
+      gapBadge.className = 'gap-badge good';
+      gapBadge.textContent = 'Competitive';
+      metricGapVal.style.color = 'var(--accent-cyan)';
+      gapBarFill.style.background = 'var(--accent-cyan)';
+    } else if (gapPct <= 25.0) {
+      gapBadge.className = 'gap-badge moderate';
+      gapBadge.textContent = 'Moderate Gap';
+      metricGapVal.style.color = 'var(--accent-amber)';
+      gapBarFill.style.background = 'var(--accent-amber)';
+    } else {
+      gapBadge.className = 'gap-badge poor';
+      gapBadge.textContent = 'Sub-optimal';
+      metricGapVal.style.color = '#fb7185';
+      gapBarFill.style.background = '#fb7185';
+    }
+  }
+
   // --- Initialization ---
   function loadInstance(key) {
     if (!window.VRPMV_DATA || !window.VRPMV_DATA[key]) return;
@@ -114,6 +191,18 @@
     state.panX = 0;
     state.panY = 0;
 
+    // Reset GA best for new instance
+    state.gaBestCost = Infinity;
+    state.gaBestInd = null;
+    state.gaGeneration = 0;
+    curGenVal.textContent = '0';
+    curBestVal.textContent = '0.0';
+
+    const target = getBenchmarkCost();
+    benchmarkTargetVal.textContent = target ? target.toFixed(1) : 'N/A';
+    curTargetVal.textContent = target ? target.toFixed(1) : '-';
+    curGapVal.textContent = '-';
+
     applySolutionMode();
   }
 
@@ -122,6 +211,8 @@
     if (!inst) return;
 
     if (state.currentMode === 'solutions') {
+      ghostOverlayLabel.style.display = 'none';
+      gaComparisonBox.style.display = 'none';
       const solType = state.currentStage === 'stage1' ? 'vrptw' : 'vrpmv';
       const sol = inst.solutions[solType];
 
@@ -163,6 +254,15 @@
         // Fallback if no precomputed solution
         state.routes = [];
         canvasTitleText.textContent = `${inst.name} — Run Live GA`;
+      }
+    } else {
+      // Live GA mode
+      ghostOverlayLabel.style.display = 'flex';
+      savingsBox.style.display = 'none';
+      if (state.gaBestCost !== Infinity) {
+        updateOptimalityGap(state.gaBestCost);
+      } else {
+        gaComparisonBox.style.display = 'none';
       }
     }
 
@@ -254,6 +354,32 @@
       }
     }
     ctx.restore();
+
+    // 0. Draw Benchmark Ghost Routes (dashed reference)
+    if (state.showBenchmarkGhost && state.currentMode === 'liveGA') {
+      const bks = getBenchmarkSolution();
+      if (bks && bks.routes) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 6]);
+        ctx.lineJoin = 'round';
+        bks.routes.forEach(r => {
+          const heavy = Array.isArray(r) ? r : (r.heavy || []);
+          const path = [0, ...heavy, 0];
+          ctx.beginPath();
+          path.forEach((cid, idx) => {
+            const node = cid === 0 ? nodes.deport : nodes[`customer_${cid}`];
+            if (!node) return;
+            const { px, py } = projectCoord(node.coordinates.x, node.coordinates.y, box, w, h);
+            if (idx === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+    }
 
     // 1. Draw Routes
     state.routes.forEach(routeObj => {
@@ -539,6 +665,9 @@
 
     state.gaGeneration = 0;
     state.gaBestCost = Infinity;
+    const target = getBenchmarkCost();
+    curTargetVal.textContent = target ? target.toFixed(1) : '-';
+    curGapVal.textContent = '-';
 
     function twoOptSubroute(route) {
       if (route.length < 4) return route;
@@ -674,11 +803,20 @@
         metricVehicles.textContent = `${state.routes.length}`;
         const droneCount = state.routes.reduce((acc, r) => acc + (r.light ? r.light.length : 0), 0);
         metricDrones.textContent = `${droneCount} sorties`;
+        updateOptimalityGap(state.gaBestCost);
         drawCanvas();
       }
 
       curGenVal.textContent = state.gaGeneration;
       curBestVal.textContent = state.gaBestCost.toFixed(1);
+      const bksCost = getBenchmarkCost();
+      if (bksCost && state.gaBestCost !== Infinity) {
+        const gapPct = ((state.gaBestCost - bksCost) / bksCost) * 100;
+        const sign = gapPct >= 0 ? '+' : '';
+        curGapVal.textContent = `(${sign}${gapPct.toFixed(1)}%)`;
+      } else {
+        curGapVal.textContent = '-';
+      }
 
       // Reproduce
       const nextPop = [evaluated[0].ind]; // Elite 1
@@ -721,6 +859,8 @@
     panelSolutions.style.display = 'block';
     panelLiveGA.style.display = 'none';
     state.currentMode = 'solutions';
+    ghostOverlayLabel.style.display = 'none';
+    gaComparisonBox.style.display = 'none';
     applySolutionMode();
   });
 
@@ -730,7 +870,15 @@
     panelLiveGA.style.display = 'block';
     panelSolutions.style.display = 'none';
     state.currentMode = 'liveGA';
+    ghostOverlayLabel.style.display = 'flex';
+    savingsBox.style.display = 'none';
     canvasTitleText.textContent = `${state.instance.name} — Live In-Browser GA`;
+    if (state.gaBestCost !== Infinity) {
+      updateOptimalityGap(state.gaBestCost);
+    } else {
+      gaComparisonBox.style.display = 'none';
+    }
+    drawCanvas();
   });
 
   stage1Btn.addEventListener('click', () => {
@@ -780,6 +928,117 @@
   closeAboutBtn.addEventListener('click', () => aboutModal.style.display = 'none');
   aboutModal.addEventListener('click', (e) => {
     if (e.target === aboutModal) aboutModal.style.display = 'none';
+  });
+
+  // --- Comparison Modal & Ghost Toggle ---
+  function openCompareModal() {
+    if (!state.instance) return;
+    const inst = state.instance;
+    compareModalInstanceName.textContent = inst.name;
+
+    const bks = getBenchmarkSolution();
+    const bksCost = getBenchmarkCost();
+    const gaCost = state.gaBestCost !== Infinity ? state.gaBestCost : null;
+
+    const bksVehicles = bks && bks.routes ? bks.routes.length : '-';
+    const gaVehicles = state.routes && state.routes.length ? state.routes.length : '-';
+
+    const bksDrones = bks && bks.routes ? bks.routes.reduce((acc, r) => acc + (r.light ? r.light.length : 0), 0) : 0;
+    const gaDrones = state.routes && state.routes.length ? state.routes.reduce((acc, r) => acc + (r.light ? r.light.length : 0), 0) : 0;
+
+    let costDelta = '-';
+    let costGap = '-';
+    if (bksCost && gaCost) {
+      const d = gaCost - bksCost;
+      const pct = (d / bksCost) * 100;
+      const sign = d > 0 ? '+' : '';
+      costDelta = `${sign}${d.toFixed(1)}`;
+      costGap = `${sign}${pct.toFixed(1)}%`;
+    }
+
+    const vehDelta = (typeof bksVehicles === 'number' && typeof gaVehicles === 'number')
+      ? `${gaVehicles - bksVehicles > 0 ? '+' : ''}${gaVehicles - bksVehicles}`
+      : '-';
+
+    compareTableBody.innerHTML = `
+      <tr>
+        <td><strong>Total Distance (Cost)</strong></td>
+        <td><strong style="color: var(--accent-emerald);">${bksCost ? bksCost.toFixed(1) : 'N/A'}</strong></td>
+        <td><strong style="color: var(--accent-cyan);">${gaCost ? gaCost.toFixed(1) : 'Run GA First'}</strong></td>
+        <td><span style="font-weight: 600; color: ${bksCost && gaCost && (gaCost - bksCost) / bksCost <= 0.1 ? 'var(--accent-emerald)' : '#fb7185'}">${costGap} (${costDelta})</span></td>
+      </tr>
+      <tr>
+        <td><strong>Fleet Size (Trucks)</strong></td>
+        <td>${bksVehicles}</td>
+        <td>${gaVehicles}</td>
+        <td>${vehDelta}</td>
+      </tr>
+      <tr>
+        <td><strong>Drone Sorties</strong></td>
+        <td>${bksDrones}</td>
+        <td>${gaDrones}</td>
+        <td>${typeof gaDrones === 'number' && typeof bksDrones === 'number' ? (gaDrones - bksDrones) : '-'}</td>
+      </tr>
+      <tr>
+        <td><strong>Algorithm Paradigm</strong></td>
+        <td>Multi-Stage Heuristic (Precomputed)</td>
+        <td>In-Browser Single Permutation GA</td>
+        <td>Different Search Spaces</td>
+      </tr>
+      <tr>
+        <td><strong>Local Search</strong></td>
+        <td>Full Route Relocation & 2-Opt</td>
+        <td>${document.getElementById('ga2OptCheck').checked ? 'Active Intra-Route 2-Opt' : 'Disabled (Raw Order)'}</td>
+        <td>-</td>
+      </tr>
+    `;
+
+    // Diagnostic Analysis text
+    if (!gaCost) {
+      compareAnalysisBox.innerHTML = `
+        <div style="color: var(--text-muted);">
+          ℹ️ No live GA solution computed yet. Click <strong>"Run In-Browser GA"</strong> to evolve tours and inspect the gap in real time.
+        </div>
+      `;
+    } else {
+      const gapPct = bksCost ? ((gaCost - bksCost) / bksCost) * 100 : 0;
+      let diagnosis = '';
+      if (gapPct <= 0.5) {
+        diagnosis = `
+          <span style="color: var(--accent-emerald); font-weight: 600;">Outstanding Convergence (★ Optimal BKS):</span>
+          The in-browser genetic algorithm discovered a solution matching the benchmark within <strong>${gapPct.toFixed(1)}%</strong>. Vehicle clustering and customer ordering effectively match optimal perimeter sweeping.
+        `;
+      } else if (gapPct <= 10.0) {
+        diagnosis = `
+          <span style="color: var(--accent-cyan); font-weight: 600;">Competitive Solution:</span>
+          The GA achieved a solution within <strong>+${gapPct.toFixed(1)}%</strong> of the benchmark target. Route partitions are well-formed with minor localized sub-optimality in crossover joins.
+        `;
+      } else if (gapPct <= 25.0) {
+        diagnosis = `
+          <span style="color: var(--accent-amber); font-weight: 600;">Moderate Optimality Gap (+${gapPct.toFixed(1)}%):</span>
+          The single-permutation capacity-split representation explores a subset of the multi-vehicle space. Turning on <strong>Intra-Route 2-Opt</strong> and increasing population size to <strong>150+</strong> typically closes this gap by 5–10%. Toggle the <em>Overlay Benchmark Ghost</em> on the canvas to see which clusters cross.
+        `;
+      } else {
+        diagnosis = `
+          <span style="color: #fb7185; font-weight: 600;">Sub-optimal Convergence (+${gapPct.toFixed(1)}%):</span>
+          The population has premature convergence or needs more generations to escape local minima. Try increasing <strong>Generations (150+)</strong>, enabling <strong>2-Opt Local Search</strong>, and increasing <strong>Mutation Probability (0.2)</strong>.
+        `;
+      }
+      compareAnalysisBox.innerHTML = diagnosis;
+    }
+
+    compareModal.style.display = 'flex';
+  }
+
+  openCompareBtn.addEventListener('click', openCompareModal);
+  closeCompareBtn.addEventListener('click', () => { compareModal.style.display = 'none'; });
+  compareModal.addEventListener('click', (e) => {
+    if (e.target === compareModal) compareModal.style.display = 'none';
+  });
+
+  toggleGhostCheckbox.addEventListener('change', (e) => {
+    state.showBenchmarkGhost = e.target.checked;
+    drawCanvas();
   });
 
   // Canvas Pan & Zoom

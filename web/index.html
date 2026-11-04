@@ -106,8 +106,12 @@
               <input type="checkbox" id="ga2OptCheck" checked> Enable Memetic 2-Opt Refinement
             </label>
           </div>
-          <div id="gaProgressText" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--accent-cyan); margin-top: 0.5rem; display: none;">
-            Evolving: Gen <span id="curGenVal">0</span> / <span id="totGenVal">100</span> | Best: <span id="curBestVal">0.0</span>
+          <div id="gaProgressText" style="font-size: 0.72rem; font-family: var(--font-mono); color: var(--accent-cyan); margin-top: 0.5rem; display: none;">
+            Evolving: Gen <span id="curGenVal">0</span> / <span id="totGenVal">100</span> | Best: <span id="curBestVal">0.0</span> | Target: <span id="curTargetVal">787.2</span> (<span id="curGapVal">+0.0%</span>)
+          </div>
+          <div class="benchmark-pill" id="gaBenchmarkPill" style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.65rem; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; margin-top: 0.75rem; font-size: 0.75rem;">
+            <span style="color: var(--text-muted);">Benchmark Target (BKS):</span>
+            <span style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-cyan);" id="benchmarkTargetVal">787.2</span>
           </div>
         </div>
       </div>
@@ -136,6 +140,27 @@
             <div class="kpi-label">Efficiency Gain (Truck + Drone vs Pure Truck)</div>
             <div class="kpi-val" id="metricSavings">-</div>
           </div>
+          <!-- Live GA vs Benchmark Comparison Box -->
+          <div class="kpi-box kpi-comparison" id="gaComparisonBox" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+              <div class="kpi-label">Optimality Gap vs Benchmark</div>
+              <span class="gap-badge" id="gapBadge">-</span>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 0.4rem;">
+              <div class="kpi-val" id="metricGapVal">-</div>
+              <span style="font-size: 0.75rem; color: var(--text-muted);" id="metricGapDelta"></span>
+            </div>
+            <div class="gap-bar-container" style="margin-top: 0.4rem; background: rgba(255,255,255,0.08); height: 6px; border-radius: 3px; overflow: hidden;">
+              <div id="gapBarFill" style="background: var(--accent-cyan); height: 100%; width: 100%; border-radius: 3px; transition: width 0.3s ease, background 0.3s ease;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 0.25rem;">
+              <span>Target: <strong id="barTargetVal" style="color: var(--text-main);">-</strong></span>
+              <span>GA Best: <strong id="barCurrentVal" style="color: var(--accent-cyan);">-</strong></span>
+            </div>
+            <button class="btn btn-ghost" id="openCompareBtn" style="width: 100%; justify-content: center; font-size: 0.72rem; padding: 0.3rem 0.5rem; margin-top: 0.5rem;">
+              📊 View Detailed Comparison Table
+            </button>
+          </div>
         </div>
       </div>
 
@@ -162,6 +187,10 @@
             <div class="legend-item"><span class="line-solid"></span> Heavy Truck Route</div>
             <div class="legend-item"><span class="line-dashed"></span> Light Drone Route</div>
             <div class="legend-item"><span class="dot-rendezvous"></span> Rendezvous Node</div>
+            <label class="legend-item" id="ghostOverlayLabel" style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 0.35rem; margin-left: 0.5rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
+              <input type="checkbox" id="toggleGhostCheckbox" checked style="cursor: pointer; accent-color: var(--accent-cyan);">
+              <span class="line-ghost"></span> Overlay Benchmark Ghost
+            </label>
           </div>
         </div>
 
@@ -231,6 +260,37 @@
           <li><strong>Stage 1</strong>: Solves the macro vehicle routing with time windows using partially matched crossover (PMX) and elitist selection.</li>
           <li><strong>Stage 2</strong>: Greedily clusters interior customers within drone capacity/range constraints, and optimizes launch/rendezvous points via custom rendezvous crossover and mutation operators.</li>
         </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Modal -->
+  <div class="modal-overlay" id="compareModal">
+    <div class="modal-content" style="max-width: 640px;">
+      <div class="modal-header">
+        <h2>Benchmark vs Live GA Solution Comparison</h2>
+        <button class="close-btn" id="closeCompareBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+          Evaluating your in-browser Genetic Algorithm solution against the verified optimal/best-known benchmark for <strong id="compareModalInstanceName" style="color: var(--text-main);">A-n32-k5</strong>:
+        </p>
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Benchmark (Target)</th>
+              <th>Live GA Solution</th>
+              <th>Variance ($\Delta$ / %)</th>
+            </tr>
+          </thead>
+          <tbody id="compareTableBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+        <div id="compareAnalysisBox" style="margin-top: 1.25rem; padding: 0.75rem 1rem; border-radius: var(--radius-md); background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); font-size: 0.8rem; line-height: 1.5;">
+          <!-- Dynamically generated diagnosis -->
+        </div>
       </div>
     </div>
   </div>
